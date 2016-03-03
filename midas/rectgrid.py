@@ -1248,13 +1248,10 @@ class state(object):
 
        if var_dict['Z'] is not None and var_dict['Ztype'] is 'Fixed' and self.interfaces is None:
 
-         if var_dict['zbax_data'] is not None:  # Construct interface positions using existing 1-d interface positions
+         if var_dict['zbax_data'] is not None:  # Construct interface positions using mid-points between levels
            zind=var_dict['slice_read'][1];nz=len(zind)
-#           print 'nz= ',nz
-#           print 'zind= ',zind
-#           ziind = numpy.hstack((zind,zind[-1]+1))
-#           print 'zbax_data.shape= ',var_dict['zbax_data'].shape
-           tmp = numpy.reshape(var_dict['zbax_data'],(nz+1,1,1))
+           ziind = numpy.hstack((zind,zind[-1]+1))
+           tmp = numpy.reshape(var_dict['zbax_data'][ziind],(nz+1,1,1))
            if self.geo_region is not None:
              ny = len(self.geo_region['y'])
              nx = len(self.geo_region['x'])
@@ -1588,6 +1585,7 @@ class state(object):
     for i in numpy.arange(0,val.shape[0]):
       if val.shape[1] == 1:
         tmp = numpy.squeeze(numpy.take(numpy.take(val,[i],axis=0),[0],axis=1))
+        tmp = numpy.ma.masked_invalid(tmp)
         mask_in = numpy.ma.getmask(tmp)
         fill = numpy.zeros([tmp.shape[0],tmp.shape[1]])
         fill[numpy.logical_and(wet == 1.0,mask_in) ]=1.0        
@@ -4179,7 +4177,11 @@ class state(object):
         for field in fields:
             # Write static fields
             if self.var_dict[field]['T'] is  None:
-                outv[m][:]=sq(self.__dict__[field][:])
+                fld=sq(self.__dict__[field][:])
+                if fld.dtype == numpy.int32 or fld.dtype == numpy.int64:
+                    outv[m][:]=fld
+                else:
+                    outv[m][:]=numpy.ma.masked_invalid(fld)
             m=m+1
 
 
@@ -4189,10 +4191,18 @@ class state(object):
         if self.var_dict[field]['T'] is not None:
             for n in numpy.arange(tstart,nt+tstart):
                 if self.var_dict[field]['X'] is None and self.var_dict[field]['Y'] is None and self.var_dict[field]['Z'] is None:
-                    outv[m][n]=self.__dict__[field][n-tstart]
+                    fld=sq(self.__dict__[field][n-tstart])
+                    if fld.dtype == numpy.int32 or fld.dtype == numpy.int64:
+                        outv[m][n]=fld
+                    else:
+                        outv[m][n]=numpy.ma.masked_invalid(fld)
                 else:
-                    outv[m][n,:]=sq(self.__dict__[field][n-tstart,:])
-
+                    fld=sq(self.__dict__[field][n-tstart,:])
+                    if fld.dtype == numpy.int32 or fld.dtype == numpy.int64:
+                        outv[m][n,:]=fld
+                    else:
+                        outv[m][n,:]=numpy.ma.masked_invalid(fld)
+                    
 
                 if write_interfaces and self.var_dict[field]['Ztype'] is 'Fixed' and p == 0:
                     outv[-1][:]=sq(zi[:])
